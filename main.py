@@ -1,10 +1,5 @@
 import streamlit as st
 
-st.title('나의 첫 streamlit 프로젝트!')
-st.write('hello streamlit')
-
-import streamlit as st
-
 # --- 페이지 설정 ---
 st.set_page_config(
     page_title="🔮 나의 ✨환상적인✨ 진로를 찾아볼까요?",
