@@ -1,0 +1,110 @@
+folium
+streamlit_folium
+pip install streamlit yfinance plotly pandas
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import datetime
+pip install -r requirements.txt
+
+st.set_page_config(layout="wide")
+
+st.title("📈 글로벌 시가총액 Top 10 기업 주가 변화 (최근 1년)")
+st.markdown("Yahoo Finance 데이터를 기반으로 주요 기업들의 주가 변화를 시각화합니다.")
+
+# 글로벌 시가총액 Top 10 기업 (일반적으로 사용되는 티커)
+# 실제 시가총액 순위는 변동될 수 있습니다.
+# 여기에 포함된 티커는 대표적인 글로벌 대기업들입니다.
+# 더 정확한 최신 Top 10 리스트는 별도로 확인 후 업데이트해야 합니다.
+top_10_tickers = {
+    "Apple": "AAPL",
+    "Microsoft": "MSFT",
+    "NVIDIA": "NVDA", # 최근 급등으로 Top 10 진입
+    "Alphabet (GOOGL)": "GOOGL",
+    "Alphabet (GOOG)": "GOOG",
+    "Amazon": "AMZN",
+    "Meta Platforms": "META",
+    "Saudi Aramco": "2222.SR", # 사우디 주식 (Yahoo Finance 티커)
+    "TSMC": "TSM", # 대만 주식
+    "Tesla": "TSLA", # 최근 변동성이 큼
+    "Berkshire Hathaway": "BRK-B",
+    "Eli Lilly": "LLY", # 헬스케어 섹터 강세
+}
+
+# 데이터를 가져올 기간 설정 (최근 1년)
+end_date = datetime.date.today()
+start_date = end_date - datetime.timedelta(days=365)
+
+# --- 데이터 가져오기 ---
+@st.cache_data
+def get_stock_data(tickers, start, end):
+    data = yf.download(list(tickers.values()), start=start, end=end)
+    return data['Adj Close']
+
+with st.spinner("데이터를 불러오는 중입니다... 잠시만 기다려 주세요."):
+    stock_data = get_stock_data(top_10_tickers, start_date, end_date)
+
+if stock_data.empty:
+    st.error("데이터를 불러오지 못했습니다. 티커를 확인하거나 잠시 후 다시 시도해주세요.")
+else:
+    st.subheader("기업별 최근 1년 주가 변화")
+
+    # 모든 주가를 시작점으로 정규화 (인덱스 100 기준)
+    normalized_data = stock_data.div(stock_data.iloc[0]) * 100
+
+    # --- Plotly 시각화 ---
+    fig = make_subplots(rows=1, cols=1)
+
+    for company_name, ticker in top_10_tickers.items():
+        if ticker in normalized_data.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=normalized_data.index,
+                    y=normalized_data[ticker],
+                    mode='lines',
+                    name=company_name,
+                    hovertemplate=f'<b>{company_name}</b><br>' +
+                                  '날짜: %{x|%Y-%m-%d}<br>' +
+                                  '정규화된 주가: %{y:.2f}<extra></extra>'
+                )
+            )
+
+    fig.update_layout(
+        title_text=f"글로벌 시가총액 Top 10 기업 주가 변화 (정규화, {start_date} ~ {end_date})",
+        xaxis_title="날짜",
+        yaxis_title="정규화된 주가 (시작점 100 기준)",
+        hovermode="x unified",
+        height=600,
+        legend_title="기업",
+        template="plotly_dark" # 또는 "plotly", "ggplot2", "seaborn" 등
+    )
+    fig.update_xaxes(
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
+        )
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("원데이터 (조정 종가)")
+    st.dataframe(stock_data.tail())
+
+    st.subheader("정규화된 데이터 (시작점 100 기준)")
+    st.dataframe(normalized_data.tail())
+
+    st.markdown("""
+    **참고:**
+    * 여기에 포함된 'Top 10 기업' 목록은 예시이며, 실제 시가총액 순위는 시시각각 변동될 수 있습니다.
+        가장 최신 시가총액 순위는 금융 정보 웹사이트(예: CompaniesMarketCap.com, Yahoo Finance)에서 확인해야 합니다.
+    * `yfinance` 라이브러리는 Yahoo Finance의 데이터를 사용하며, 일부 해외 주식(예: 사우디 아람코)은 티커가 다를 수 있습니다.
+    * 주가 데이터는 `Adj Close` (조정 종가)를 기준으로 합니다.
+    * 시각화된 데이터는 시작점을 100으로 정규화하여 상대적인 변화를 비교하기 쉽게 합니다.
+    """)
